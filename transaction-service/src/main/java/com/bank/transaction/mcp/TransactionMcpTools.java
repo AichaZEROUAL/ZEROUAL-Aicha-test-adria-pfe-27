@@ -1,8 +1,10 @@
 package com.bank.transaction.mcp;
 
 import com.bank.transaction.dto.TransactionResponse;
+import com.bank.transaction.dto.TransferResponse;
 import com.bank.transaction.service.CreateTransactionCommand;
 import com.bank.transaction.service.TransactionService;
+import com.bank.transaction.service.TransferCommand;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
@@ -33,6 +35,19 @@ public class TransactionMcpTools {
                 currency,
                 merchantCategory,
                 country)));
+    }
+
+    @McpTool(name = "transfer_money", description = "Transfer money from one account to another account in the same currency")
+    public TransferResponse transferMoney(
+            @McpToolParam(description = "Source account UUID", required = true) String sourceAccountId,
+            @McpToolParam(description = "Target account UUID", required = true) String targetAccountId,
+            @McpToolParam(description = "Amount, strictly positive and below the configured maximum", required = true) double amount,
+            @McpToolParam(description = "ISO currency code such as EUR or MAD", required = true) String currency) {
+        return TransferResponse.from(transactionService.transfer(new TransferCommand(
+                UUID.fromString(sourceAccountId),
+                UUID.fromString(targetAccountId),
+                BigDecimal.valueOf(amount),
+                currency)));
     }
 
     @McpTool(name = "get_transaction", description = "Get a transaction by its id")

@@ -16,6 +16,18 @@ input CreateTransactionInput {
     country: String!
 }
 
+input TransferInput {
+    sourceAccountId: ID!
+    targetAccountId: ID!
+    amount: Float!
+    currency: String!
+}
+
+type TransferResult {
+    debit: Transaction!
+    credit: Transaction!
+}
+
 type Query {
     transactions: [Transaction!]!
     transactionById(id: ID!): Transaction
@@ -24,4 +36,5 @@ type Query {
 
 type Mutation {
     createTransaction(input: CreateTransactionInput!): Transaction!
+    transfer(input: TransferInput!): TransferResult!
 }

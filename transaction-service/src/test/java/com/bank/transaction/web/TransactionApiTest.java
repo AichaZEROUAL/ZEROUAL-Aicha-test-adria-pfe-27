@@ -1,15 +1,22 @@
 package com.bank.transaction.web;
 
+import com.bank.transaction.client.AccountClient;
+import com.bank.transaction.client.AccountDto;
+import com.bank.transaction.exception.AccountNotFoundException;
 import com.jayway.jsonpath.JsonPath;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -26,6 +33,15 @@ class TransactionApiTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @MockitoBean
+    private AccountClient accountClient;
+
+    @BeforeEach
+    void stubAccounts() {
+        when(accountClient.getAccount(any(UUID.class))).thenAnswer(invocation ->
+                new AccountDto(invocation.getArgument(0), "CUST", "ACTIVE", "EUR", 5000));
+    }
 
     private String body(UUID accountId, String amount) {
         return "{\"accountId\":\"" + accountId + "\",\"amount\":" + amount
@@ -76,6 +92,28 @@ class TransactionApiTest {
     }
 
     @Test
+    void unknownAccountReturnsNotFound() throws Exception {
+        UUID accountId = UUID.randomUUID();
+        when(accountClient.getAccount(accountId)).thenThrow(new AccountNotFoundException(accountId));
+
+        mockMvc.perform(post("/api/transactions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(accountId, "10")))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void currencyMismatchIsRejected() throws Exception {
+        String request = "{\"accountId\":\"" + UUID.randomUUID()
+                + "\",\"amount\":10,\"currency\":\"MAD\",\"merchantCategory\":\"GROCERY\",\"country\":\"MA\"}";
+
+        mockMvc.perform(post("/api/transactions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isUnprocessableEntity());
+    }
+
+    @Test
     void listsTransactionsOfOneAccount() throws Exception {
         UUID accountId = UUID.randomUUID();
         createTransaction(accountId, "10");
@@ -85,6 +123,35 @@ class TransactionApiTest {
         mockMvc.perform(get("/api/transactions").param("accountId", accountId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(2));
+    }
+
+    @Test
+    void transferCreatesDebitAndCreditTransactions() throws Exception {
+        UUID source = UUID.randomUUID();
+        UUID target = UUID.randomUUID();
+        String request = "{\"sourceAccountId\":\"" + source + "\",\"targetAccountId\":\"" + target
+                + "\",\"amount\":150,\"currency\":\"EUR\"}";
+
+        mockMvc.perform(post("/api/transfers")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.debit.accountId").value(source.toString()))
+                .andExpect(jsonPath("$.debit.merchantCategory").value("TRANSFER_OUT"))
+                .andExpect(jsonPath("$.credit.accountId").value(target.toString()))
+                .andExpect(jsonPath("$.credit.merchantCategory").value("TRANSFER_IN"));
+    }
+
+    @Test
+    void transferToTheSameAccountIsRejected() throws Exception {
+        UUID account = UUID.randomUUID();
+        String request = "{\"sourceAccountId\":\"" + account + "\",\"targetAccountId\":\"" + account
+                + "\",\"amount\":10,\"currency\":\"EUR\"}";
+
+        mockMvc.perform(post("/api/transfers")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isUnprocessableEntity());
     }
 
     @Test
@@ -104,5 +171,20 @@ class TransactionApiTest {
                         .content(query))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.transactionsByAccount[0].merchantCategory").value("TRAVEL"));
+    }
+
+    @Test
+    void graphqlTransfer() throws Exception {
+        UUID source = UUID.randomUUID();
+        UUID target = UUID.randomUUID();
+        String mutation = "{\"query\":\"mutation { transfer(input: {sourceAccountId: \\\"" + source
+                + "\\\", targetAccountId: \\\"" + target
+                + "\\\", amount: 20, currency: \\\"EUR\\\"}) { debit { merchantCategory } credit { merchantCategory } } }\"}";
+        mockMvc.perform(post("/graphql")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mutation))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.transfer.debit.merchantCategory").value("TRANSFER_OUT"))
+                .andExpect(jsonPath("$.data.transfer.credit.merchantCategory").value("TRANSFER_IN"));
     }
 }

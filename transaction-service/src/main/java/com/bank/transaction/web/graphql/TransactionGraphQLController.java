@@ -1,9 +1,11 @@
 package com.bank.transaction.web.graphql;
 
 import com.bank.transaction.dto.TransactionResponse;
+import com.bank.transaction.dto.TransferResponse;
 import com.bank.transaction.exception.TransactionNotFoundException;
 import com.bank.transaction.service.CreateTransactionCommand;
 import com.bank.transaction.service.TransactionService;
+import com.bank.transaction.service.TransferCommand;
 import org.springframework.graphql.data.method.annotation.Argument;
 import org.springframework.graphql.data.method.annotation.MutationMapping;
 import org.springframework.graphql.data.method.annotation.QueryMapping;
@@ -38,6 +40,15 @@ public class TransactionGraphQLController {
     @QueryMapping
     public List<TransactionResponse> transactionsByAccount(@Argument UUID accountId) {
         return transactionService.listByAccount(accountId).stream().map(TransactionResponse::from).toList();
+    }
+
+    @MutationMapping
+    public TransferResponse transfer(@Argument TransferInput input) {
+        return TransferResponse.from(transactionService.transfer(new TransferCommand(
+                input.sourceAccountId(),
+                input.targetAccountId(),
+                input.amount(),
+                input.currency())));
     }
 
     @MutationMapping
