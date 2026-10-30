@@ -22,6 +22,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.cloud.discovery.enabled=false",
         "eureka.client.enabled=false",
         "spring.config.import=",
+        "bank.transaction.max-amount=1000",
         "bank.account-service.url=http://localhost:1"
 })
 @AutoConfigureMockMvc

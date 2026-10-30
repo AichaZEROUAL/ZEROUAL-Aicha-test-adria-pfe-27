@@ -26,7 +26,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.cloud.config.enabled=false",
         "spring.cloud.discovery.enabled=false",
         "eureka.client.enabled=false",
-        "spring.config.import="
+        "spring.config.import=",
+        "bank.transaction.max-amount=1000"
 })
 @AutoConfigureMockMvc
 class TransactionApiTest {
