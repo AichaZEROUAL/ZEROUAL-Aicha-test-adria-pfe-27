@@ -1,0 +1,12 @@
+target/
+.idea/
+*.iml
+.vscode/
+.env
+node_modules/
+frontend/dist/
+frontend/.angular/
+*.log
+__pycache__/
+.ipynb_checkpoints/
+.venv/
